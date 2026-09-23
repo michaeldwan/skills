@@ -1,52 +1,78 @@
 ---
 name: recap
-description: "Reconstruct the thread of the current session so the user can pick it back up after stepping away. Summarize the originating intent, walk the conversational path through to where it currently stands, and name the natural next step. Use when the user says 'recap', 'what were we doing', 'where were we', 'remind me what this session is about', 'catch me up on this conversation', 'I lost the thread', 'what's this session about', 'where am I', or runs /skill:recap. Trigger it any time the user comes back to a session they've been away from and needs to reorient."
+description: "Orient the user in the current session after they've lost track of it: what this session is about, what kind of work it is (planning, exploring, building, debugging, reviewing), what state it's in, and where it stopped. A short 'previously on...', not a history or a to-do list. Use when the user says 'recap', 'what were we doing', 'where were we', 'what's this session about', 'catch me up', 'I lost the thread', 'remind me what this is', or runs /skill:recap. Also use when the user comes back to a session after time away and needs to reorient."
 ---
 
 # recap
 
-Summarize the session the way you'd re-orient a person who stepped out of a conversation and walked back in: *"you asked X, we talked about Y and Z, which led us to W — so the next thing is…"*. The goal is to click them back into the thread, not to produce a status report.
+The user runs many sessions at once and comes back to them after an hour, a day,
+or a week. They run this when they can't remember which session this is or where
+it was. Your job is orientation: give them enough to recognize the session and
+find their footing. It's a "previously on...", not a history of the session and
+not advice about what to do next.
 
 ## Where the material comes from
 
-Your source is the conversation already in your context — the turns you can see, including any compaction summary the harness left. This keeps the skill identical across pi, Claude Code, OpenCode, and anywhere else Agent Skills run.
+Use only the conversation already in your context: the turns you can see,
+including any compaction summary the harness left.
 
-- Do **not** start fresh investigation: don't re-read the codebase, run searches, or open files to "check" things. You're summarizing what's already on the table, not re-deriving it.
-- Use the **real names** from the work — file paths, function names, terms the user and you actually used. Don't invent labels for things that already have names.
-- If the conversation is too short to have a thread yet (the session just started, or there's been one exchange), say so plainly rather than padding.
+- Don't investigate. No reading files, running searches, or checking git. You're
+  describing what's already on the table.
+- The one exception: run `scripts/session-times.py` from this skill's directory
+  to get when the session started and when it was last active. Message
+  timestamps aren't in your context, so this is the only way to know them. If it
+  prints nothing or fails, leave the times out.
+- Use the real names from the work: file paths, function names, ticket ids,
+  terms the user and you actually used. Don't invent labels.
+- If a compaction summary is your only source for the earlier part of the
+  session, say so in a few words. Summaries lose detail, and the user should
+  know the early part is secondhand.
+- If you can't recover what the session is about (it opened mid-task, or a
+  compaction dropped the original ask), say that plainly instead of guessing.
 
-## Honesty about what's recoverable
+## Report the state, don't steer
 
-Sessions meander, and that's fine — the thread isn't supposed to be a straight line, it's the path the conversation actually took. But if the **originating intent** genuinely isn't recoverable from context (it predates a compaction that dropped it, or the session opened mid-task with no stated purpose), say so: *"I can't recover the original ask from context — here's what I can see of the thread."* A reported blank beats a confident confabulation. Same for any section you can't honestly fill — leave it out rather than inventing it.
+- **Separate what the user decided from what you proposed.** "You chose X" and
+  "I suggested X, you hadn't responded" are different states to come back to.
+  Don't promote a suggestion, or a remark the user made in passing, into a
+  decision.
+- **No recommendations.** Don't suggest a next step or say what the user should
+  do. Report where the session stopped: the last thing that happened, and
+  anything waiting on someone. If your last message asked the user a question
+  they never answered, say so -- that's usually the most useful line in the
+  recap.
+- **Recap and stop.** Print the recap and end your turn. Don't continue the work,
+  even if it looks obvious.
 
 ## Output
 
-Print this template, filled in. Keep it skimmable — plain language, the length the session earns. A quick 5-turn session might be four short paragraphs; a day-long one earns more. Don't pad to fill sections.
+Keep the whole recap on one screen, however long the session ran. Size it by how
+much is in play now, not by how much happened. A short session can be two
+sentences with no headings, plus the times.
+
+For anything longer, use this shape:
 
 ```
-# recap
+**<what this session is about>** · <mode> · <repo, plus branch or worktree if it matters>
+Started <start time> · last active <last active time>
 
-## Intent
-<the originating ask — why this session exists. One or two lines, plain language.
- "You came in to …". If you can't recover it, say so.>
+**Previously:** <2-4 lines. Only the turns that changed the session's direction
+or scope. Skip dead ends unless one explains the current state.>
 
-## The thread
-<walk the conversational path in order. Show the shape of the conversation —
- the topics in the sequence they actually came up, each with where it landed.
- It should read as "we talked about X, then Y, which led to Z."
- Group closely-related turns; don't enumerate every single message.
- This is the part that re-triggers "oh yeah, so …".>
+**Now:** <what exists, what's decided, what's still open. Real names.>
 
-## Where that left us
-<concrete current state: what exists now, what changed, what's decided,
- what's open or half-done. Names of real things, not abstractions.>
-
-## The next thing
-<the natural place to pick the thread back up. The single "so …" the thread
- is pointing at — what was mid-thought, just raised, or next in line.
- If there's genuinely no clear next step, say that.>
+**Stopped at:** <the last thing that happened; any unanswered question, and
+anything still running or waiting on the user.>
 ```
 
-## Tone
+The first line is the one that matters most. The user may have several sessions
+on related topics open at once, so it should let them tell at a glance whether
+this is the one they're looking for. Copy the times as the script prints them,
+including the relative part ("3d ago"). Name the mode (planning, exploring,
+building, debugging, reviewing) because it's often the only thing that tells two
+sessions on the same topic apart.
 
-Write it the way a sharp collaborator would talk you back into a conversation, not the way a project tracker would log it. Specific beats abstract: "we kept hitting the token limit on the context dump, so we switched to streaming it" lands; "we addressed technical challenges" does not.
+Leave out a section you can't honestly fill rather than padding it.
+
+Be specific. "We kept hitting the token limit on the context dump, so we
+switched to streaming it" is useful. "We addressed technical challenges" isn't.
